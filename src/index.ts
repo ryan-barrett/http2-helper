@@ -1,4 +1,5 @@
-import http2 from 'http2';
+import http2            from 'http2';
+import { EventEmitter } from 'events';
 
 // const options = {
 //   key: getKeySomehow(),
@@ -38,17 +39,19 @@ class Http2Manager {
  */
 
 class Http2Server {
-  _server: http2.Http2Server = http2.createServer();
-  _port: number;
-  _streamHandler: (stream: http2.Http2Stream, requestHeaders?: http2.ClientSessionRequestOptions) => void;
+  public name: string;
+  protected _server: http2.Http2Server = http2.createServer();
+  protected _port: number;
+  public emitter: EventEmitter = new EventEmitter();
 
-  constructor(streamHandler, port: number, key?: string, cert?: string) {
-    this._streamHandler = streamHandler;
+  constructor(name: string, port: number, key?: string, cert?: string) {
+    this.name = name;
     this._port = port;
+    Http2Manager.AddServer(name, this);
   }
 
   public connect() {
-    this.initStreamHandler();
+    this.initStreamEmitter();
     this._server.listen(this._port);
   }
 
@@ -56,42 +59,74 @@ class Http2Server {
     this._server.close();
   }
 
-  private initStreamHandler() {
-    this._server.on('stream', this._streamHandler);
+  private initStreamEmitter() {
+    this._server.on('stream', (stream, headers) => {
+      stream.respond({ ':status': 200, 'content-type': 'text/plain' });
+      this.emitter.emit(`${this.name}:Http2Stream`, stream, headers);
+    });
   }
 }
 
 /**
+ * things we assume happen elsewhere for now
+ */
+
+const server = new Http2Server('test', 8000);
+server.connect();
+
+/**
  * our decorator
  *
- * @param name
- * @param port
- * @param key
- * @param cert
  * @constructor
+ * @param serverName
  */
-function Http2(name: string, port: number, key?: string, cert?: string) {
+function Http2(serverName: string) {
   return function Http2(target, propertyKey, descriptor) {
-    const server = new Http2Server(descriptor.value, port, key, cert);
-    server.connect();
-    Http2Manager.AddServer(name, server);
+    const server = Http2Manager.GetServer(serverName);
+    server.emitter.on(`${serverName}:Http2Stream`, function (stream: http2.Http2Stream, headers: http2.ClientSessionRequestOptions) {
+      descriptor.value(stream, headers);
+    });
   };
 }
 
 /**
- * Early example
+ * Early example - this method will execute when a connection is made
  */
 
 class Example {
-  @Http2('an example', 8000)
-  thisWillBeAStreamHandler(stream, headers) {
-    stream.respond({ ':status': 200, 'content-type': 'text/plain' });
+  @Http2('test')
+  public thisWillBeAStreamHandler(stream, headers) {
     stream.write('hello ');
 
     for (let i = 5; i > 0; i--) {
       stream.write('hello ');
     }
   };
+
+  anotherNonHttp2Method() {
+    console.log('things are happening');
+  }
+}
+
+/**
+ * another class that also listens to incoming streams and takes action on them. In this case it just logs our headers
+ */
+
+class Example2 {
+  @Http2('test')
+  public anotherStreamHandler(stream, headers) {
+    console.log('headers', headers);
+  }
+
+  @Http2('test')
+  public sendSomeMessage(stream, headers) {
+    setTimeout(() => {
+      stream.write('hello again');
+    }, 5000);
+  }
 }
 
 const example = new Example();
+const example2 = new Example2();
+
+example.anotherNonHttp2Method();

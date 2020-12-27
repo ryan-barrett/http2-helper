@@ -118,6 +118,7 @@ class Example2 {
     console.log('headers', headers);
   }
 
+  // send another message 5 seconds after
   @Http2('test')
   public sendSomeMessage(stream, headers) {
     setTimeout(() => {

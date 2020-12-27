@@ -12,14 +12,14 @@ import http2 from 'http2';
 class Http2Manager {
   static _servers: { [key: string]: Http2Server } = {};
 
-  static Get(serverName: string): Http2Server {
+  static GetServer(serverName: string): Http2Server {
     if (!this._servers[serverName]) {
       throw new Error('no http2 server found with that name');
     }
     return this._servers[serverName];
   }
 
-  static Add(name: string, server: Http2Server): void {
+  static AddServer(name: string, server: Http2Server): void {
     if (this._servers[name]) {
       throw new Error('an http2 server with that name already exists');
     }
@@ -74,7 +74,7 @@ function Http2(name: string, port: number, key?: string, cert?: string) {
   return function Http2(target, propertyKey, descriptor) {
     const server = new Http2Server(descriptor.value, port, key, cert);
     server.connect();
-    Http2Manager.Add(name, server);
+    Http2Manager.AddServer(name, server);
   };
 }
 

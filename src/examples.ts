@@ -1,5 +1,5 @@
-import { v4 as uuid }                                                               from 'uuid';
-import { Http2Factory, Http2Listener, Http2SessionListener, Poll, ServerBroadcast } from './index';
+import { v4 as uuid }                                                                    from 'uuid';
+import { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } from './index';
 
 // const options = {
 //   key: getKeySomehow(),
@@ -89,11 +89,11 @@ class Example2 {
   }
 
   /**
-   * poll on behalf of the client
+   * poll stuff. this method will be run on the polling interval
    *
    * @param stream
    */
-  @Poll('test', 5000)
+  @Http2Poll('test', 5000)
   public pollSomeStuff(stream) {
     const id = uuid();
     stream.write(id);

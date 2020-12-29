@@ -226,6 +226,19 @@ export function ServerBroadcast(serverName: string) {
   };
 }
 
+export function Poll(serverName: string, pollingTime: number) {
+  return function PollInner(target, propertyKey, descriptor) {
+    const server = Http2Factory.GetServer(serverName);
+    server.emitter.on(`${serverName}:Http2Stream`, function (stream: http2.Http2Stream, headers: http2.ClientSessionRequestOptions) {
+      descriptor.value(stream, headers);
+
+      setInterval(() => {
+        descriptor.value(stream, headers);
+      }, pollingTime);
+    });
+  };
+}
+
 /**
  * broadcast a method to all servers
  *

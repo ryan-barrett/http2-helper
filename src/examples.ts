@@ -1,4 +1,5 @@
-import { Http2Factory, Http2Listener, Http2SessionListener, ServerBroadcast } from './index';
+import { v4 as uuid }                                                               from 'uuid';
+import { Http2Factory, Http2Listener, Http2SessionListener, Poll, ServerBroadcast } from './index';
 
 // const options = {
 //   key: getKeySomehow(),
@@ -85,6 +86,17 @@ class Example2 {
   @Http2SessionListener('test')
   public logStreamOrigins(session) {
     // console.log(session.originSet);
+  }
+
+  /**
+   * poll on behalf of the client
+   *
+   * @param stream
+   */
+  @Poll('test', 5000)
+  public pollSomeStuff(stream) {
+    const id = uuid();
+    stream.write(id);
   }
 }
 

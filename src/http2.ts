@@ -247,9 +247,15 @@ export function Http2Poll(serverName: string, pollingTime: number) {
     server.addStreamListener(target, propertyKey);
 
     const { value } = descriptor;
-    descriptor.value = function (...args) {
-      value(...args);
-      setInterval(() => value(...args), pollingTime);
+    descriptor.value = function (stream: http2.Http2Stream, headers: http2.IncomingHttpHeaders) {
+      value(stream, headers);
+
+      const interval = setInterval(() => {
+        if (stream.closed) {
+          clearInterval(interval);
+        }
+        value(stream, headers);
+      }, pollingTime);
     };
   };
 }

@@ -1,4 +1,8 @@
-import { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } from './index';
+// import { Http2 } from './index';
+//
+// const { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } = Http2;
+
+import { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } from 'http2-helper';
 
 // const options = {
 //   key: getKeySomehow(),

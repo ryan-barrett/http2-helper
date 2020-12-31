@@ -1,11 +1,15 @@
 {
-  "name": "http2",
-  "version": "1.0.0",
+  "name": "http2-helper",
+  "version": "1.0.5",
   "description": "",
-  "main": "index.js",
+  "main": "./dist/index.js",
   "scripts": {
     "start": "tsc && node dist/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "npm run build",
+    "version": "git add -A src",
+    "postversion": "git push && git push --tags"
   },
   "author": "",
   "license": "ISC",
@@ -15,5 +19,10 @@
   },
   "dependencies": {
     "uuid": "^8.3.2"
-  }
+  },
+  "files": [
+    "dist/**/*",
+    "index.js",
+    "README.md"
+  ]
 }

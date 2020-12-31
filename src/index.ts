@@ -1,3 +1,3 @@
 export * from './http2';
 
-import('./examples');
+// import('./examples');

@@ -2,28 +2,34 @@ import http2            from 'http2';
 import { EventEmitter } from 'events';
 import { v4 as uuid }   from 'uuid';
 
-type StreamListener = (stream: http2.Http2Stream, headers: http2.ClientSessionRequestOptions) => void;
+type StreamListener = (stream: http2.Http2Stream, headers: http2.IncomingHttpHeaders) => void;
 
 /**
  * creates and manages our collection of servers
  */
 
 class Http2FactorySingleton {
-  emitter = new EventEmitter();
-  _servers: { [key: string]: Http2Server } = {};
+  public emitter = new EventEmitter();
+  private _servers: { [key: string]: Http2Server } = {};
 
-  // FaCtOrY PaTtErN
+  constructor() {
+    this.InitFactoryListeners();
+  }
+
+  /**
+   * this is how we make new Http2Servers
+   */
   public Create(name: string, key?: string, cert?: string) {
-    const newServer = new Http2Server(name, this.emitter, key, cert);
+    const newServer = new Http2Server(name, key, cert);
     this.AddServer(name, newServer);
     return newServer;
   }
 
-  public GetServer(serverName: string): Http2Server {
-    if (!this._servers[serverName]) {
+  public GetServer(name: string): Http2Server {
+    if (!this._servers[name]) {
       throw new Error('no http2 server found with that name');
     }
-    return this._servers[serverName];
+    return this._servers[name];
   }
 
   private AddServer(name: string, server: Http2Server): void {
@@ -33,11 +39,19 @@ class Http2FactorySingleton {
     this._servers[name] = server;
   }
 
+  private RemoveServer(name) {
+    delete this._servers[name];
+  }
+
   /**
    * disconnect ALL servers
    */
-  @Broadcast()
-  async disconnect(): Promise<void> {
+  public DisconnectAll() {
+    this.disconnect();
+  }
+
+  @FactoryBroadcast()
+  private async disconnect(): Promise<void> {
   }
 
   /**
@@ -45,34 +59,71 @@ class Http2FactorySingleton {
    *
    * @param args
    */
-  @Broadcast()
-  async writeAll(...args) {
+  public WriteAll(...args) {
+    this.writeAll(...args);
+  }
+
+  @FactoryBroadcast()
+  private async writeAll(...args) {
+  }
+
+  private InitFactoryListeners() {
+    this.emitter.on('server:close', (serverName: string) => {
+      this.RemoveServer(serverName);
+    });
   }
 }
+
+/**
+ * export as a singleton
+ */
+export const Http2Factory = new Http2FactorySingleton();
 
 /**
  * an individual server
  */
 class Http2Server {
-  private readonly _name: string;
-  public emitter = new EventEmitter();
   protected _server: http2.Http2Server;
   protected _streamCache = {};
+  protected _streamListeners: any = [];
+  protected _sessionListeners: any = [];
+  readonly _name: string;
 
-  constructor(name: string, factoryEmitter: EventEmitter, key?: string, cert?: string) {
+  constructor(name: string, key?: string, cert?: string) {
     this._name = name;
     this._server = http2.createServer();
 
     /**
      * we allow the factory to have a line of communication directly to all servers
      */
-    factoryEmitter.on('broadcast', (methodName: string, ...args) => {
+    Http2Factory.emitter.on('broadcast', (methodName: string, ...args) => {
       Reflect.get(this, methodName).apply(this, args);
     });
   }
 
   get name(): string {
     return this._name;
+  }
+
+  public addStreamListener(protoClass: { any }, methodName: string) {
+    this._streamListeners.push({ protoClass, methodName });
+  }
+
+  public addSessionListener(protoClass: { any }, methodName: string) {
+    this._sessionListeners.push({ protoClass, methodName });
+  }
+
+  private async digest(listeners: { protoClass: any, methodName: string }[], ...args) {
+    for (const listener of listeners) {
+      const targetClass = new listener.protoClass.constructor();
+
+      if (targetClass[listener.methodName][Symbol.toStringTag] === 'AsyncFunction') {
+        await targetClass[listener.methodName](...args);
+      }
+      else {
+        targetClass[listener.methodName](...args);
+      }
+    }
   }
 
   /**
@@ -104,13 +155,15 @@ class Http2Server {
     this._server.on(event, listener);
   }
 
-  public connect(port: number) {
-    this.initStreamEmitter();
+  public listen(port: number) {
+    this.initListeners();
     this._server.listen(port);
   }
 
   public disconnect() {
+    this._streamCache = {};
     this._server.close();
+    Http2Factory.emitter.emit('server:close', this._name);
   }
 
   private removeFromCache(streamId: number) {
@@ -125,18 +178,8 @@ class Http2Server {
    *
    * @private
    */
-  private initStreamEmitter() {
-    this._server.on('stream', (stream, headers) => {
-      /**
-       * we have a separate emitter for events inside our application. There has to be an order of operations:
-       * 1) we receive the incoming stream
-       * 2) we respond OK
-       * 3) we feed the stream to application internal emitters for them to do with what they like
-       *
-       * we also want to expose the server itself through an interface. You can then directly use the server emitter if
-       * needed.
-       */
-
+  private initListeners() {
+    this._server.on('stream', (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => {
       /**
        * we maintain a cache of stream references for later use
        */
@@ -148,24 +191,18 @@ class Http2Server {
         this.removeFromCache(id);
       });
 
-      stream.respond({ ':status': 200, 'content-type': 'text/plain' });
-      this.emitter.emit(`${this.name}:Http2Stream`, stream, headers);
+      this.digest(this._streamListeners, stream, headers).catch(console.error);
     });
 
     /**
      * we also make the session available to the application interior once it is ready. We can use this for things
      * such as seeing where the connection came from
      */
-    this._server.on('session', (session) => {
-      this.emitter.emit(`${this.name}:Http2Session`, session);
+    this._server.on('session', (session: http2.ServerHttp2Session) => {
+      this.digest(this._sessionListeners, session).catch(console.error);
     });
   }
 }
-
-/**
- * export as a singleton
- */
-export const Http2Factory = new Http2FactorySingleton();
 
 /**
  * Decorators!
@@ -178,11 +215,9 @@ export const Http2Factory = new Http2FactorySingleton();
  * @param serverName
  */
 export function Http2Listener(serverName: string) {
-  return function Http2Listener(target, propertyKey, descriptor) {
+  return function Http2Listener(target, propertyKey) {
     const server = Http2Factory.GetServer(serverName);
-    server.emitter.on(`${serverName}:Http2Stream`, function (stream: http2.Http2Stream, headers: http2.ClientSessionRequestOptions) {
-      descriptor.value(stream, headers);
-    });
+    server.addStreamListener(target, propertyKey);
   };
 }
 
@@ -193,11 +228,29 @@ export function Http2Listener(serverName: string) {
  * @constructor
  */
 export function Http2SessionListener(serverName: string) {
-  return function Http2SessionListenerInner(target, propertyKey, descriptor) {
+  return function Http2SessionListenerInner(target, propertyKey) {
     const server = Http2Factory.GetServer(serverName);
-    server.emitter.on(`${serverName}:Http2Session`, function (session: http2.Http2Session) {
-      descriptor.value(session);
-    });
+    server.addSessionListener(target, propertyKey);
+  };
+}
+
+/**
+ * a stream listener except this time it continues running on a set interval as long as the connection lives
+ *
+ * @param serverName
+ * @param pollingTime
+ * @constructor
+ */
+export function Http2Poll(serverName: string, pollingTime: number) {
+  return function PollInner(target, propertyKey: string, descriptor) {
+    const server = Http2Factory.GetServer(serverName);
+    server.addStreamListener(target, propertyKey);
+
+    const { value } = descriptor;
+    descriptor.value = function (...args) {
+      value(...args);
+      setInterval(() => value(...args), pollingTime);
+    };
   };
 }
 
@@ -208,7 +261,7 @@ export function Http2SessionListener(serverName: string) {
  * @constructor
  */
 export function ServerBroadcast(serverName: string) {
-  return function ServerBroadcastInner(target, propertyKey, descriptor) {
+  return function ServerBroadcastInner(target, propertyKey: string, descriptor) {
     const { value } = descriptor;
 
     descriptor.value = function (...args) {
@@ -226,30 +279,17 @@ export function ServerBroadcast(serverName: string) {
   };
 }
 
-export function Http2Poll(serverName: string, pollingTime: number) {
-  return function PollInner(target, propertyKey, descriptor) {
-    const server = Http2Factory.GetServer(serverName);
-    server.emitter.on(`${serverName}:Http2Stream`, function (stream: http2.Http2Stream, headers: http2.ClientSessionRequestOptions) {
-      descriptor.value(stream, headers);
-
-      setInterval(() => {
-        descriptor.value(stream, headers);
-      }, pollingTime);
-    });
-  };
-}
-
 /**
- * broadcast a method to all servers
+ * broadcast a method to all servers from Http2Factory
  *
  * @constructor
  */
-export function Broadcast() {
-  return function BroadcastInner(target, propertyKey, descriptor) {
+export function FactoryBroadcast() {
+  return function BroadcastInner(target, propertyKey: string, descriptor) {
     const { value } = descriptor;
     descriptor.value = function () {
       value();
       this.emitter.emit('broadcast', propertyKey, ...Object.values(arguments));
     };
   };
-};
+}

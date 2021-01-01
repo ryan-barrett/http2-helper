@@ -2,6 +2,7 @@
 //
 // const { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } = Http2;
 
+// @ts-ignore
 import { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } from 'http2-helper';
 
 // const options = {

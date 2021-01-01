@@ -1,6 +1,6 @@
 {
   "name": "http2-helper",
-  "version": "1.0.5",
+  "version": "1.0.8",
   "description": "",
   "main": "./dist/index.js",
   "scripts": {
@@ -20,6 +20,11 @@
   "dependencies": {
     "uuid": "^8.3.2"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ryan-barrett/http2-helper.git"
+  },
+  "homepage": "https://github.com/ryan-barrett/http2-helper",
   "files": [
     "dist/**/*",
     "index.js",

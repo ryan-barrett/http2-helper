@@ -19,7 +19,7 @@ class _Http2Factory extends EventEmitter {
   /**
    * this is how we make new Http2Servers
    */
-  public Create(name: string, key?: string, cert?: string) {
+  public Create(name: string, key?: Buffer, cert?: Buffer) {
     const newServer = new Http2Server(name, key, cert);
     this.AddServer(name, newServer);
     return newServer;
@@ -89,9 +89,15 @@ class Http2Server {
   protected _sessionListeners: any = [];
   readonly _name: string;
 
-  constructor(name: string, key?: string, cert?: string) {
+  constructor(name: string, key?: Buffer, cert?: Buffer) {
     this._name = name;
-    this._server = http2.createServer();
+
+    if (key && cert) {
+      this._server = http2.createSecureServer({ key, cert });
+    }
+    else {
+      this._server = http2.createServer();
+    }
 
     /**
      * we allow the factory to have a line of communication directly to all servers

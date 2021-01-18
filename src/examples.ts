@@ -1,15 +1,14 @@
+import fs from 'fs';
 // import { Http2 } from './index';
 //
 // const { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } = Http2;
 
 import { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } from './http2';
 
-// const options = {
-//   key: getKeySomehow(),
-//   cert: getCertSomehow()
-// };
+const key = fs.readFileSync('/Users/ryan/dev/http2-server/localhost-privkey.pem');
+const cert = fs.readFileSync('/Users/ryan/dev/http2-server/localhost-cert.pem');
 
-const server = Http2Factory.Create('test');
+const server = Http2Factory.Create('test', key, cert);
 server.listen(8000);
 
 /**

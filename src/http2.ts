@@ -1,6 +1,6 @@
 import http2            from 'http2';
 import { EventEmitter } from 'events';
-import { v4 as uuid }   from 'uuid';
+import { uuidv4 }       from './utils';
 
 type StreamListener = (stream: http2.Http2Stream, headers: http2.IncomingHttpHeaders) => void;
 
@@ -172,7 +172,7 @@ class Http2Server {
     Http2Factory.emit('server:close', this._name);
   }
 
-  private removeFromCache(streamId: number) {
+  private removeFromCache(streamId: string) {
     if (this._streamCache[streamId]) {
       delete this._streamCache[streamId];
     }
@@ -189,7 +189,7 @@ class Http2Server {
       /**
        * we maintain a cache of stream references for later use
        */
-      const id = uuid();
+      const id = uuidv4();
       Reflect.set(stream, 'streamId', id);
       this._streamCache[id] = stream;
 

@@ -8,11 +8,11 @@ type StreamListener = (stream: http2.Http2Stream, headers: http2.IncomingHttpHea
  * creates and manages our collection of servers
  */
 
-class Http2FactorySingleton {
-  public emitter = new EventEmitter();
+class _Http2Factory extends EventEmitter {
   private _servers: { [key: string]: Http2Server } = {};
 
   constructor() {
+    super();
     this.InitFactoryListeners();
   }
 
@@ -44,7 +44,7 @@ class Http2FactorySingleton {
   }
 
   /**
-   * disconnect ALL servers
+   * emits an event to each associated server disconnecting them all
    */
   public DisconnectAll() {
     this.disconnect();
@@ -55,7 +55,7 @@ class Http2FactorySingleton {
   }
 
   /**
-   * send a message to ALL servers e.g. system wide broadcast
+   * send a message to each associated server - e.g. system wide broadcast
    *
    * @param args
    */
@@ -68,7 +68,7 @@ class Http2FactorySingleton {
   }
 
   private InitFactoryListeners() {
-    this.emitter.on('server:close', (serverName: string) => {
+    this.on('server:close', (serverName: string) => {
       this.RemoveServer(serverName);
     });
   }
@@ -77,7 +77,7 @@ class Http2FactorySingleton {
 /**
  * export as a singleton
  */
-export const Http2Factory = new Http2FactorySingleton();
+export const Http2Factory = new _Http2Factory();
 
 /**
  * an individual server
@@ -96,7 +96,7 @@ class Http2Server {
     /**
      * we allow the factory to have a line of communication directly to all servers
      */
-    Http2Factory.emitter.on('broadcast', (methodName: string, ...args) => {
+    Http2Factory.on('broadcast', (methodName: string, ...args) => {
       Reflect.get(this, methodName).apply(this, args);
     });
   }
@@ -163,7 +163,7 @@ class Http2Server {
   public disconnect() {
     this._streamCache = {};
     this._server.close();
-    Http2Factory.emitter.emit('server:close', this._name);
+    Http2Factory.emit('server:close', this._name);
   }
 
   private removeFromCache(streamId: number) {

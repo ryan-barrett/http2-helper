@@ -8,7 +8,7 @@ type StreamListener = (stream: http2.Http2Stream, headers: http2.IncomingHttpHea
  * creates and manages our collection of servers
  */
 class _Http2Factory extends EventEmitter {
-  private _servers: { [key: string]: Http2Server } = {};
+  private servers: { [key: string]: Http2Server } = {};
 
   constructor() {
     super();
@@ -25,28 +25,28 @@ class _Http2Factory extends EventEmitter {
   }
 
   public GetServer(name: string): Http2Server {
-    if (!this._servers[name]) {
+    if (!this.servers[name]) {
       throw new Error('no http2 server found with that name');
     }
-    return this._servers[name];
+    return this.servers[name];
   }
 
   private AddServer(name: string, server: Http2Server): void {
-    if (this._servers[name]) {
+    if (this.servers[name]) {
       throw new Error('an http2 server with that name already exists');
     }
-    this._servers[name] = server;
+    this.servers[name] = server;
   }
 
   private RemoveServer(name) {
-    delete this._servers[name];
+    delete this.servers[name];
   }
 
   /**
    * emits an event to each associated server disconnecting them all
    */
-  public DisconnectAll() {
-    this.disconnect();
+  public async DisconnectAll() {
+    await this.disconnect();
   }
 
   @FactoryBroadcast()
@@ -56,8 +56,8 @@ class _Http2Factory extends EventEmitter {
   /**
    * send a message to each associated server - e.g. system wide broadcast
    */
-  public WriteAll(...args) {
-    this.writeAll(...args);
+  public async WriteAll(...args) {
+    await this.writeAll(...args);
   }
 
   @FactoryBroadcast()
@@ -80,20 +80,20 @@ export const Http2Factory = new _Http2Factory();
  * an individual server
  */
 class Http2Server {
-  protected _server: http2.Http2Server;
-  protected _streamCache = {};
-  protected _streamListeners: any = [];
-  protected _sessionListeners: any = [];
-  readonly _name: string;
+  protected server: http2.Http2Server;
+  protected streamCache = {};
+  protected streamListeners: any = [];
+  protected sessionListeners: any = [];
+  readonly name: string;
 
   constructor(name: string, key?: Buffer, cert?: Buffer) {
-    this._name = name;
+    this.name = name;
 
     if (key && cert) {
-      this._server = http2.createSecureServer({ key, cert });
+      this.server = http2.createSecureServer({ key, cert });
     }
     else {
-      this._server = http2.createServer();
+      this.server = http2.createServer();
     }
 
     /**
@@ -104,16 +104,12 @@ class Http2Server {
     });
   }
 
-  get name(): string {
-    return this._name;
-  }
-
   public addStreamListener(protoClass: { any }, methodName: string) {
-    this._streamListeners.push({ protoClass, methodName });
+    this.streamListeners.push({ protoClass, methodName });
   }
 
   public addSessionListener(protoClass: { any }, methodName: string) {
-    this._sessionListeners.push({ protoClass, methodName });
+    this.sessionListeners.push({ protoClass, methodName });
   }
 
   private async digest(listeners: { protoClass: any, methodName: string }[], ...args) {
@@ -133,8 +129,8 @@ class Http2Server {
    * send a message over all active connections for this server e.g. server wide broadcast
    */
   public writeAll(...args) {
-    for (const stream in this._streamCache) {
-      this._streamCache[stream].write(...args);
+    for (const stream in this.streamCache) {
+      this.streamCache[stream].write(...args);
     }
   }
 
@@ -142,30 +138,30 @@ class Http2Server {
    * if we need to emit directly over the server
    */
   public emit(event: string, ...args) {
-    this._server.emit(event, ...args);
+    this.server.emit(event, ...args);
   }
 
   /**
    * if we need to listen directly over the server
    */
   public on(event: string, listener: StreamListener) {
-    this._server.on(event, listener);
+    this.server.on(event, listener);
   }
 
   public listen(port: number) {
     this.initListeners();
-    this._server.listen(port);
+    this.server.listen(port);
   }
 
   public disconnect() {
-    this._streamCache = {};
-    this._server.close();
-    Http2Factory.emit('server:close', this._name);
+    this.streamCache = {};
+    this.server.close();
+    Http2Factory.emit('server:close', this.name);
   }
 
   private removeFromCache(streamId: string) {
-    if (this._streamCache[streamId]) {
-      delete this._streamCache[streamId];
+    if (this.streamCache[streamId]) {
+      delete this.streamCache[streamId];
     }
   }
 
@@ -174,27 +170,27 @@ class Http2Server {
    * for the server listener
    */
   private initListeners() {
-    this._server.on('stream', (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => {
+    this.server.on('stream', (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => {
       /**
        * we maintain a cache of stream references for later use
        */
       const id = uuidv4();
       Reflect.set(stream, 'streamId', id);
-      this._streamCache[id] = stream;
+      this.streamCache[id] = stream;
 
       stream.on('close', () => {
         this.removeFromCache(id);
       });
 
-      this.digest(this._streamListeners, stream, headers).catch(console.error);
+      this.digest(this.streamListeners, stream, headers).catch(console.error);
     });
 
     /**
      * we also make the session available to the application interior once it is ready. We can use this for things
      * such as seeing where the connection came from
      */
-    this._server.on('session', (session: http2.ServerHttp2Session) => {
-      this.digest(this._sessionListeners, session).catch(console.error);
+    this.server.on('session', (session: http2.ServerHttp2Session) => {
+      this.digest(this.sessionListeners, session).catch(console.error);
     });
   }
 }

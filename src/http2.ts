@@ -7,7 +7,6 @@ type StreamListener = (stream: http2.Http2Stream, headers: http2.IncomingHttpHea
 /**
  * creates and manages our collection of servers
  */
-
 class _Http2Factory extends EventEmitter {
   private _servers: { [key: string]: Http2Server } = {};
 
@@ -56,8 +55,6 @@ class _Http2Factory extends EventEmitter {
 
   /**
    * send a message to each associated server - e.g. system wide broadcast
-   *
-   * @param args
    */
   public WriteAll(...args) {
     this.writeAll(...args);
@@ -143,9 +140,6 @@ class Http2Server {
 
   /**
    * if we need to emit directly over the server
-   *
-   * @param event
-   * @param args
    */
   public emit(event: string, ...args) {
     this._server.emit(event, ...args);
@@ -153,9 +147,6 @@ class Http2Server {
 
   /**
    * if we need to listen directly over the server
-   *
-   * @param event
-   * @param listener
    */
   public on(event: string, listener: StreamListener) {
     this._server.on(event, listener);
@@ -181,8 +172,6 @@ class Http2Server {
   /**
    * prepares the initial OK response when someone connects and then emits internally. This prevents a free for all
    * for the server listener
-   *
-   * @private
    */
   private initListeners() {
     this._server.on('stream', (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => {
@@ -216,9 +205,6 @@ class Http2Server {
 
 /**
  * create a stream listener for a given http2 server
- *
- * @constructor
- * @param serverName
  */
 export function Http2Listener(serverName: string) {
   return function Http2Listener(target, propertyKey) {
@@ -229,9 +215,6 @@ export function Http2Listener(serverName: string) {
 
 /**
  * create a session listener for a given http2 server
- *
- * @param serverName
- * @constructor
  */
 export function Http2SessionListener(serverName: string) {
   return function Http2SessionListenerInner(target, propertyKey) {
@@ -242,10 +225,6 @@ export function Http2SessionListener(serverName: string) {
 
 /**
  * a stream listener except this time it continues running on a set interval as long as the connection lives
- *
- * @param serverName
- * @param pollingTime
- * @constructor
  */
 export function Http2Poll(serverName: string, pollingTime: number) {
   return function PollInner(target, propertyKey: string, descriptor) {
@@ -268,9 +247,6 @@ export function Http2Poll(serverName: string, pollingTime: number) {
 
 /**
  * broadcast the output of decorated method to all connections on the specified server
- *
- * @param serverName
- * @constructor
  */
 export function ServerBroadcast(serverName: string) {
   return function ServerBroadcastInner(target, propertyKey: string, descriptor) {
@@ -293,8 +269,6 @@ export function ServerBroadcast(serverName: string) {
 
 /**
  * broadcast a method to all servers from Http2Factory
- *
- * @constructor
  */
 export function FactoryBroadcast() {
   return function BroadcastInner(target, propertyKey: string, descriptor) {

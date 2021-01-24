@@ -2,7 +2,14 @@ import http2            from 'http2';
 import { EventEmitter } from 'events';
 import { uuidv4 }       from './utils';
 
-type StreamListener = (stream: http2.Http2Stream, headers: http2.IncomingHttpHeaders) => void;
+export type StreamListener = (stream: http2.Http2Stream, headers: http2.IncomingHttpHeaders) => void;
+export type SessionListener = (stream: http2.Http2Session, headers: http2.IncomingHttpHeaders) => void;
+
+type Abstract<T> = Function & { prototype: T };
+type Constructor<T> = new (...args: any[]) => void;
+type Class<T> = Abstract<T> | Constructor<T>;
+
+type CachedListener = { _class: Class<any>, methodName: string }
 
 /**
  * creates and manages our collection of servers
@@ -18,7 +25,7 @@ class _Http2Factory extends EventEmitter {
   /**
    * this is how we make new Http2Servers
    */
-  public Create(name: string, key?: Buffer, cert?: Buffer) {
+  public Create(name: string, key?: Buffer, cert?: Buffer): Http2Server {
     const newServer = new Http2Server(name, key, cert);
     this.AddServer(name, newServer);
     return newServer;
@@ -31,21 +38,24 @@ class _Http2Factory extends EventEmitter {
     return this.servers[name];
   }
 
-  private AddServer(name: string, server: Http2Server): void {
+  private AddServer(name: string, server: Http2Server): boolean {
     if (this.servers[name]) {
       throw new Error('an http2 server with that name already exists');
+      return false;
     }
     this.servers[name] = server;
+    return true;
   }
 
-  private RemoveServer(name) {
+  private RemoveServer(name): boolean {
     delete this.servers[name];
+    return true;
   }
 
   /**
    * emits an event to each associated server disconnecting them all
    */
-  public async DisconnectAll() {
+  public async DisconnectAll(): Promise<void> {
     await this.disconnect();
   }
 
@@ -56,15 +66,15 @@ class _Http2Factory extends EventEmitter {
   /**
    * send a message to each associated server - e.g. system wide broadcast
    */
-  public async WriteAll(...args) {
+  public async WriteAll(...args): Promise<void> {
     await this.writeAll(...args);
   }
 
   @FactoryBroadcast()
-  private async writeAll(...args) {
+  private async writeAll(...args): Promise<void> {
   }
 
-  private InitFactoryListeners() {
+  private InitFactoryListeners(): void {
     this.on('server:close', (serverName: string) => {
       this.RemoveServer(serverName);
     });
@@ -82,8 +92,8 @@ export const Http2Factory = new _Http2Factory();
 class Http2Server {
   protected server: http2.Http2Server;
   protected streamCache = {};
-  protected streamListeners: any = [];
-  protected sessionListeners: any = [];
+  protected streamListeners: CachedListener[] = [];
+  protected sessionListeners: CachedListener[] = [];
   readonly name: string;
 
   constructor(name: string, key?: Buffer, cert?: Buffer) {
@@ -104,17 +114,17 @@ class Http2Server {
     });
   }
 
-  public addStreamListener(protoClass: { any }, methodName: string) {
-    this.streamListeners.push({ protoClass, methodName });
+  public addStreamListener(_class: Class<any>, methodName: string): void {
+    this.streamListeners.push({ _class, methodName });
   }
 
-  public addSessionListener(protoClass: { any }, methodName: string) {
-    this.sessionListeners.push({ protoClass, methodName });
+  public addSessionListener(_class: Class<any>, methodName: string): void {
+    this.sessionListeners.push({ _class, methodName });
   }
 
-  private async digest(listeners: { protoClass: any, methodName: string }[], ...args) {
+  private async digest(listeners: CachedListener[], ...args): Promise<void> {
     for (const listener of listeners) {
-      const targetClass = new listener.protoClass.constructor();
+      const targetClass = new (Reflect.get(listener._class, 'constructor'));
 
       if (targetClass[listener.methodName][Symbol.toStringTag] === 'AsyncFunction') {
         await targetClass[listener.methodName](...args);
@@ -128,7 +138,7 @@ class Http2Server {
   /**
    * send a message over all active connections for this server e.g. server wide broadcast
    */
-  public writeAll(...args) {
+  public writeAll(...args): void {
     for (const stream in this.streamCache) {
       this.streamCache[stream].write(...args);
     }
@@ -137,40 +147,42 @@ class Http2Server {
   /**
    * if we need to emit directly over the server
    */
-  public emit(event: string, ...args) {
+  public emit(event: string, ...args): void {
     this.server.emit(event, ...args);
   }
 
   /**
    * if we need to listen directly over the server
    */
-  public on(event: string, listener: StreamListener) {
+  public on(event: string, listener: StreamListener): void {
     this.server.on(event, listener);
   }
 
-  public listen(port: number) {
+  public listen(port: number): void {
     this.initListeners();
     this.server.listen(port);
   }
 
-  public disconnect() {
+  public disconnect(): void {
     this.streamCache = {};
     this.server.close();
     Http2Factory.emit('server:close', this.name);
   }
 
-  private removeFromCache(streamId: string) {
+  private removeFromCache(streamId: string): boolean {
     if (this.streamCache[streamId]) {
       delete this.streamCache[streamId];
+      return true;
     }
+    return false;
   }
 
   /**
    * prepares the initial OK response when someone connects and then emits internally. This prevents a free for all
    * for the server listener
    */
-  private initListeners() {
-    this.server.on('stream', (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => {
+  private initListeners(): void {
+    this.server.on('stream', async (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => {
       /**
        * we maintain a cache of stream references for later use
        */
@@ -182,15 +194,15 @@ class Http2Server {
         this.removeFromCache(id);
       });
 
-      this.digest(this.streamListeners, stream, headers).catch(console.error);
+      await this.digest(this.streamListeners, stream, headers);
     });
 
     /**
      * we also make the session available to the application interior once it is ready. We can use this for things
      * such as seeing where the connection came from
      */
-    this.server.on('session', (session: http2.ServerHttp2Session) => {
-      this.digest(this.sessionListeners, session).catch(console.error);
+    this.server.on('session', async (session: http2.ServerHttp2Session) => {
+      await this.digest(this.sessionListeners, session);
     });
   }
 }

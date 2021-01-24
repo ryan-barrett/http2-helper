@@ -41,7 +41,6 @@ class _Http2Factory extends EventEmitter {
   private AddServer(name: string, server: Http2Server): boolean {
     if (this.servers[name]) {
       throw new Error('an http2 server with that name already exists');
-      return false;
     }
     this.servers[name] = server;
     return true;

@@ -14,7 +14,7 @@ type CachedListener = { _class: Class<any>, methodName: string }
 /**
  * creates and manages our collection of servers
  */
-class _Http2Factory extends EventEmitter {
+class _Http2ServerFactory extends EventEmitter {
   private servers: { [key: string]: Http2Server } = {};
 
   constructor() {
@@ -83,7 +83,7 @@ class _Http2Factory extends EventEmitter {
 /**
  * export as a singleton
  */
-export const Http2Factory = new _Http2Factory();
+export const Http2ServerFactory = new _Http2ServerFactory();
 
 /**
  * an individual server
@@ -108,7 +108,7 @@ class Http2Server {
     /**
      * we allow the factory to have a line of communication directly to all servers
      */
-    Http2Factory.on('broadcast', (methodName: string, ...args) => {
+    Http2ServerFactory.on('broadcast', (methodName: string, ...args) => {
       Reflect.get(this, methodName).apply(this, args);
     });
   }
@@ -165,7 +165,7 @@ class Http2Server {
   public disconnect(): void {
     this.streamCache = {};
     this.server.close();
-    Http2Factory.emit('server:close', this.name);
+    Http2ServerFactory.emit('server:close', this.name);
   }
 
   private removeFromCache(streamId: string): boolean {
@@ -215,7 +215,7 @@ class Http2Server {
  */
 export function Http2Listener(serverName: string) {
   return function Http2Listener(target, propertyKey) {
-    const server = Http2Factory.GetServer(serverName);
+    const server = Http2ServerFactory.GetServer(serverName);
     server.addStreamListener(target, propertyKey);
   };
 }
@@ -225,7 +225,7 @@ export function Http2Listener(serverName: string) {
  */
 export function Http2SessionListener(serverName: string) {
   return function Http2SessionListenerInner(target, propertyKey) {
-    const server = Http2Factory.GetServer(serverName);
+    const server = Http2ServerFactory.GetServer(serverName);
     server.addSessionListener(target, propertyKey);
   };
 }
@@ -235,7 +235,7 @@ export function Http2SessionListener(serverName: string) {
  */
 export function Http2Poll(serverName: string, pollingTime: number) {
   return function PollInner(target, propertyKey: string, descriptor) {
-    const server = Http2Factory.GetServer(serverName);
+    const server = Http2ServerFactory.GetServer(serverName);
     server.addStreamListener(target, propertyKey);
 
     const { value } = descriptor;
@@ -255,19 +255,19 @@ export function Http2Poll(serverName: string, pollingTime: number) {
 /**
  * broadcast the output of decorated method to all connections on the specified server
  */
-export function ServerBroadcast(serverName: string) {
-  return function ServerBroadcastInner(target, propertyKey: string, descriptor) {
+export function Http2ServerBroadcast(serverName: string) {
+  return function Http2ServerBroadcastInner(target, propertyKey: string, descriptor) {
     const { value } = descriptor;
 
     descriptor.value = function (...args) {
       if (value[Symbol.toStringTag] === 'AsyncFunction') {
         value(...args).then((res) => {
-          const server = Http2Factory.GetServer(serverName);
+          const server = Http2ServerFactory.GetServer(serverName);
           server.writeAll(res);
         });
       }
       else {
-        const server = Http2Factory.GetServer(serverName);
+        const server = Http2ServerFactory.GetServer(serverName);
         server.writeAll(value(...args));
       }
     };

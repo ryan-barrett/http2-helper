@@ -3,13 +3,17 @@ import fs from 'fs';
 //
 // const { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } = Http2;
 
-import { Http2Factory, Http2Listener, Http2SessionListener, Http2Poll, ServerBroadcast } from './http2';
+import { Http2ServerFactory, Http2Listener, Http2SessionListener, Http2Poll, Http2ServerBroadcast } from './http2';
 
 const key = fs.readFileSync('/Users/ryan/dev/http2-server/localhost-privkey.pem');
 const cert = fs.readFileSync('/Users/ryan/dev/http2-server/localhost-cert.pem');
 
-const server = Http2Factory.Create('test', key, cert);
+const server = Http2ServerFactory.Create('test', key, cert);
 server.listen(8000);
+
+server.on('stream', (stream) => {
+  stream.write('we can still do it this way');
+});
 
 /**
  * examples of actions taken on ALL servers
@@ -76,7 +80,7 @@ class Example {
    * broadcast the output of this method to the entire server. These methods are actually expected to be called. They
    * are not event listeners. Good for sending system wide messages e.g maintenance warnings
    */
-  @ServerBroadcast('test')
+  @Http2ServerBroadcast('test')
   public broadcastTheOutput() {
     return 'a whole new wooooorld';
   }

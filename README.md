@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/http2-helper.svg)](https://badge.fury.io/js/http2-helper)
 
 A decorator based npm package intended to simplify organizing http2 listeners, as well as providing
-the ability to easily manage multiple http2 connections.
+the ability to easily manage multiple http2 client connections.
 
 As of *Feb 2021* this package makes heavy use of JavaScript decorators which are currently in stage two proposal. The
 best way to use them at this time is to compile your TypeScript to ESNext or use 

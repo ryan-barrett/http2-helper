@@ -2,7 +2,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://badge.fury.io/js/http2-helper.svg)](https://badge.fury.io/js/http2-helper)
 
-Http2 Helper is a decorator based npm package intended to simplify organizing http2 listeners, as well as providing 
+A decorator based npm package intended to simplify organizing http2 listeners, as well as providing
 the ability to easily manage multiple http2 connections.
 
 As of *Feb 2021* this package makes heavy use of JavaScript decorators which are currently in stage two proposal. The

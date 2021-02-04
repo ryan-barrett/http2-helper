@@ -3,7 +3,11 @@
 [![npm version](https://badge.fury.io/js/http2-helper.svg)](https://badge.fury.io/js/http2-helper)
 
 Http2 Helper is a decorator based npm package intended to simplify organizing http2 listeners, as well as providing 
-the ability to easily manage multiple http2 connections. 
+the ability to easily manage multiple http2 connections.
+
+As of *Feb 2021* this package makes heavy use of JavaScript decorators which are currently in stage two proposal. The
+best way to use them at this time is to compile your TypeScript to ESNext or use 
+[Babel](https://babeljs.io/docs/en/babel-plugin-proposal-decorators). Read more about the proposal [here](https://tc39.es/proposal-decorators/).
 
 ### Usage
 

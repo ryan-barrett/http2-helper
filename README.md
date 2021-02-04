@@ -37,10 +37,29 @@ class Example {
   private thisWillBeAStreamHandler(stream, headers) {
     stream.respond({ ':status': 200, 'content-type': 'text/plain' });
     stream.write('hello ');
+  };
+}
+```
 
-    for (let i = 5; i > 0; i--) {
-      stream.write('hello ');
-    }
+Because listener order is respected we can also use Http2Listeners to build a pipeline for our streams:
+
+```
+class Example {
+  @Http2Listener('test')
+  private stepOne(stream, headers) {
+    stream.respond({ ':status': 200, 'content-type': 'text/plain' });
+    stream.write('hello ');
+  };
+  
+  @Http2Listener('test')
+  private stepTwo(stream, headers) {
+    stream.write('nice to meet you');
+  };
+  
+  @Http2Listener('test')
+  private stepThree(stream, headers) {
+    stream.write('goodbye');
+    stream.end();
   };
 }
 ```

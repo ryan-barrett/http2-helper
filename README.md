@@ -32,6 +32,8 @@ them to interact with the client. Our listeners will be run in the order they ar
 initial handshake as part of our first method.
 
 ```
+import { Http2ServerFactory, Http2Listener, Http2SessionListener, Http2Poll, Http2ServerBroadcast } from 'http2-helper';
+
 class Example {
   @Http2Listener('test')
   private thisWillBeAStreamHandler(stream, headers) {
